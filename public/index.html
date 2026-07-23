@@ -1,0 +1,267 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<title>Dynamic Worker Placement Validator</title>
+		<style>
+			:root {
+				--bg: #0f1117;
+				--panel: #171a23;
+				--border: #2a2f3a;
+				--text: #e6e8ee;
+				--muted: #9aa3b2;
+				--accent: #f6821f;
+				--ok: #22c55e;
+				--bad: #ef4444;
+			}
+			* { box-sizing: border-box; }
+			body {
+				margin: 0;
+				font: 15px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+				background: var(--bg);
+				color: var(--text);
+				padding: 32px 16px;
+			}
+			.wrap { max-width: 760px; margin: 0 auto; }
+			h1 { font-size: 22px; margin: 0 0 4px; }
+			p.sub { color: var(--muted); margin: 0 0 24px; }
+			.panel {
+				background: var(--panel);
+				border: 1px solid var(--border);
+				border-radius: 12px;
+				padding: 20px;
+				margin-bottom: 16px;
+			}
+			label { display: block; font-size: 13px; color: var(--muted); margin-bottom: 6px; }
+			select, input, button {
+				font: inherit;
+				border-radius: 8px;
+				border: 1px solid var(--border);
+				background: #0d0f15;
+				color: var(--text);
+				padding: 10px 12px;
+			}
+			select, input { width: 100%; }
+			.row { display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; }
+			.row > div { flex: 1 1 220px; }
+			button {
+				background: var(--accent);
+				color: #1a1a1a;
+				font-weight: 600;
+				border: none;
+				cursor: pointer;
+				padding: 10px 20px;
+				white-space: nowrap;
+			}
+			button:disabled { opacity: 0.6; cursor: default; }
+			.kv { display: flex; justify-content: space-between; gap: 12px; padding: 6px 0; border-bottom: 1px dashed var(--border); }
+			.kv:last-child { border-bottom: none; }
+			.kv .k { color: var(--muted); }
+			.kv .v { font-weight: 600; text-align: right; }
+			.badge { display: inline-block; padding: 4px 10px; border-radius: 999px; font-size: 13px; font-weight: 700; }
+			.badge.ok { background: rgba(34,197,94,0.15); color: var(--ok); }
+			.badge.bad { background: rgba(239,68,68,0.15); color: var(--bad); }
+			.badge.warn { background: rgba(246,130,31,0.15); color: var(--accent); }
+			.muted { color: var(--muted); }
+			h2 { font-size: 15px; margin: 0 0 12px; }
+			code { background: #0d0f15; padding: 2px 6px; border-radius: 6px; font-size: 13px; }
+			.hidden { display: none; }
+			pre { background: #0d0f15; border: 1px solid var(--border); border-radius: 8px; padding: 12px; overflow: auto; font-size: 12px; color: var(--muted); }
+			.note { font-size: 13px; color: var(--muted); margin-top: 10px; }
+			summary { cursor: pointer; color: var(--muted); font-size: 13px; }
+		</style>
+	</head>
+	<body>
+		<div class="wrap">
+			<h1>Dynamic Worker Placement Validator</h1>
+			<p class="sub">
+				Loads a Dynamic Worker via <code>env.LOADER.load()</code> with an explicit
+				<code>placement</code> hint, then checks which Cloudflare colo it actually ran in.
+			</p>
+
+			<div class="panel">
+				<h2>Where is the loader Worker running?</h2>
+				<div class="kv">
+					<span class="k">Loader invoked at (closest colo to you)</span>
+					<span class="v" id="loaderColo">…</span>
+				</div>
+				<div class="kv">
+					<span class="k">Your request country</span>
+					<span class="v" id="loaderCountry">…</span>
+				</div>
+				<p class="note">This is the eyeball edge location — where the loader receives your request.</p>
+			</div>
+
+			<div class="panel">
+				<h2>Run a Dynamic Worker with a placement hint</h2>
+				<div class="row">
+					<div>
+						<label for="region">placement.region</label>
+						<select id="region">
+							<optgroup label="GCP">
+								<option value="gcp:europe-west4">gcp:europe-west4 (Netherlands)</option>
+								<option value="gcp:europe-west3">gcp:europe-west3 (Frankfurt)</option>
+								<option value="gcp:us-east4">gcp:us-east4 (N. Virginia)</option>
+								<option value="gcp:asia-northeast1">gcp:asia-northeast1 (Tokyo)</option>
+								<option value="gcp:asia-southeast1">gcp:asia-southeast1 (Singapore)</option>
+							</optgroup>
+							<optgroup label="AWS">
+								<option value="aws:us-east-1">aws:us-east-1 (N. Virginia)</option>
+								<option value="aws:us-west-2">aws:us-west-2 (Oregon)</option>
+								<option value="aws:eu-central-1">aws:eu-central-1 (Frankfurt)</option>
+								<option value="aws:eu-west-1">aws:eu-west-1 (Ireland)</option>
+								<option value="aws:ap-southeast-2">aws:ap-southeast-2 (Sydney)</option>
+								<option value="aws:sa-east-1">aws:sa-east-1 (São Paulo)</option>
+							</optgroup>
+							<optgroup label="Azure">
+								<option value="azure:westeurope">azure:westeurope (Netherlands)</option>
+								<option value="azure:eastus">azure:eastus (Virginia)</option>
+								<option value="azure:southeastasia">azure:southeastasia (Singapore)</option>
+							</optgroup>
+						</select>
+					</div>
+					<div style="flex: 0 0 auto;">
+						<button id="run">Run Dynamic Worker</button>
+					</div>
+				</div>
+			</div>
+
+			<div class="panel hidden" id="results">
+				<h2>Result <span id="verdict"></span></h2>
+				<div class="kv">
+					<span class="k">Requested placement</span>
+					<span class="v" id="rPlacement">—</span>
+				</div>
+				<div class="kv">
+					<span class="k">Loader ran in</span>
+					<span class="v" id="rLoader">—</span>
+				</div>
+				<div class="kv">
+					<span class="k">Dynamic Worker ran in</span>
+					<span class="v" id="rDynamic">—</span>
+				</div>
+				<div class="kv">
+					<span class="k">Expected (nearest colo to region)</span>
+					<span class="v" id="rExpected">—</span>
+				</div>
+				<div class="kv">
+					<span class="k">Distance region → observed colo</span>
+					<span class="v" id="rDistance">—</span>
+				</div>
+				<div class="kv">
+					<span class="k">Closest to region?</span>
+					<span class="v" id="rClosest">—</span>
+				</div>
+				<div class="kv">
+					<span class="k">load() succeeded (did not throw)</span>
+					<span class="v" id="rLoadSucceeded">—</span>
+				</div>
+				<div class="kv">
+					<span class="k">Placement effective (moved the worker)</span>
+					<span class="v" id="rPlacementEffective">—</span>
+				</div>
+				<p class="note" id="rReason"></p>
+				<p class="note" id="rPlacementNote"></p>
+				<details style="margin-top: 12px;">
+					<summary>Raw response</summary>
+					<pre id="rRaw"></pre>
+				</details>
+			</div>
+		</div>
+
+		<script>
+			const $ = (id) => document.getElementById(id);
+
+			async function loadLoaderLocation() {
+				try {
+					const res = await fetch("/whereami");
+					const data = await res.json();
+					$("loaderColo").textContent = data.loader?.label ?? "unknown";
+					$("loaderCountry").textContent = data.loader?.requestCountry ?? "unknown";
+				} catch (e) {
+					$("loaderColo").textContent = "error";
+				}
+			}
+
+			async function run() {
+				const btn = $("run");
+				const region = $("region").value;
+				btn.disabled = true;
+				btn.textContent = "Running…";
+				try {
+					const res = await fetch("/run", {
+						method: "POST",
+						headers: { "content-type": "application/json" },
+						body: JSON.stringify({ region }),
+					});
+					const data = await res.json();
+					render(data);
+				} catch (e) {
+					alert("Request failed: " + e);
+				} finally {
+					btn.disabled = false;
+					btn.textContent = "Run Dynamic Worker";
+				}
+			}
+
+			function render(data) {
+				$("results").classList.remove("hidden");
+				$("rRaw").textContent = JSON.stringify(data, null, 2);
+
+				if (data.error) {
+					$("verdict").innerHTML = '<span class="badge bad">ERROR</span>';
+					$("rReason").textContent = data.detail || data.error;
+					return;
+				}
+
+				const v = data.validation || {};
+
+				// Headline verdict is the REAL signal: did placement actually move
+				// the Dynamic Worker near the region and away from the loader colo?
+				$("verdict").innerHTML = data.placementEffective
+					? '<span class="badge ok">✓ PLACEMENT EFFECTIVE</span>'
+					: '<span class="badge bad">✗ PLACEMENT NOT EFFECTIVE</span>';
+
+				$("rPlacement").textContent =
+					(data.placementRequested?.region ?? "—") +
+					"  (" + (v.regionLabel ?? "") + ")";
+				$("rLoader").textContent = data.loader?.label ?? "—";
+				$("rDynamic").textContent = data.dynamicWorker?.executionColo?.label ?? "—";
+				$("rExpected").textContent = v.expectedNearestColo?.label ?? "—";
+				$("rDistance").textContent =
+					v.distanceKm != null ? v.distanceKm.toLocaleString() + " km" : "—";
+
+				$("rClosest").innerHTML = v.ok
+					? '<span class="badge ok">yes</span>'
+					: '<span class="badge bad">no</span>';
+				$("rLoadSucceeded").innerHTML = data.loadSucceeded
+					? '<span class="badge ok">yes</span>'
+					: '<span class="badge bad">no</span>';
+				$("rPlacementEffective").innerHTML = data.placementEffective
+					? '<span class="badge ok">yes</span>'
+					: '<span class="badge bad">no</span>';
+
+				$("rReason").textContent = v.reason ?? "";
+
+				// Explain the distinction between "load() succeeded" and
+				// "placement was actually honored".
+				$("rPlacementNote").innerHTML = data.placementEffective
+					? '<span class="badge ok">placement effective</span> ' +
+						escapeHtml(data.placementEffectiveReason ?? "")
+					: '<span class="badge warn">load() ≠ honored</span> ' +
+						escapeHtml(data.placementEffectiveReason ?? "") +
+						" <br/><span class='muted'>Note: <code>load()</code> succeeding does not prove the runtime honored " +
+						"<code>placement</code> — unknown properties are usually ignored silently.</span>" +
+						(data.loadError ? "<br/><span class='muted'>" + escapeHtml(data.loadError) + "</span>" : "");
+			}
+
+			function escapeHtml(s) {
+				return String(s).replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]));
+			}
+
+			$("run").addEventListener("click", run);
+			loadLoaderLocation();
+		</script>
+	</body>
+</html>

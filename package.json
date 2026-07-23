@@ -1,0 +1,15 @@
+{
+  "name": "dynamic-worker-placement-loader",
+  "version": "0.1.0",
+  "private": true,
+  "description": "A loader Worker that executes Dynamic Workers with explicit placement hints passed to env.LOADER.load(), plus a UI that validates where the Dynamic Worker actually ran.",
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "start": "wrangler dev"
+  },
+  "devDependencies": {
+    "wrangler": "^4.20.0"
+  }
+}

@@ -1,0 +1,27 @@
+{
+	"$schema": "node_modules/wrangler/config-schema.json",
+	"name": "dynamic-worker-placement-loader",
+	"main": "src/index.js",
+	"compatibility_date": "2026-07-23",
+
+	// The Worker Loader binding gives this Worker access to the Dynamic Workers
+	// API via `env.LOADER`. It does not point at an external resource.
+	// https://developers.cloudflare.com/dynamic-workers/getting-started/#configure-worker-loader
+	"worker_loaders": [
+		{
+			"binding": "LOADER"
+		}
+	],
+
+	// The simple validation UI (public/index.html) is served as a static asset.
+	// Any request that does not match a static asset is handled by src/index.js,
+	// e.g. the POST /run API endpoint.
+	"assets": {
+		"directory": "./public",
+		"binding": "ASSETS"
+	},
+
+	"observability": {
+		"enabled": true
+	}
+}
